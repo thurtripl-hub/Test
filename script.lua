@@ -1,108 +1,21 @@
 --[[
-    DQ Reborn - Kill Aura v3
-    Fixed: blacklist non-attack remotes
+    DQ Reborn - Remote Spy + Map Dumper
     Delta compatible
+    dump remotes + args จริงๆ ออกมาดู
 --]]
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Humanoid = Character:WaitForChild("Humanoid")
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-    Character = char
-    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-    Humanoid = char:WaitForChild("Humanoid")
-end)
-
-local Config = {
-    KillAura = false,
-    Range = 50,
-    Delay = 0.05,
-}
-
--- // Whitelist — ต้องมีคำพวกนี้
-local whitelist = {"attack", "hit", "damage", "kill", "hurt", "strike", "cast"}
-
--- // Blacklist — ห้ามมีคำพวกนี้
-local blacklist = {
-    "skill", "reset", "point", "lobby", "menu", "ui",
-    "setting", "config", "chat", "emote", "equip", "sell",
-    "buy", "shop", "trade", "quest", "daily", "reward",
-    "notify", "leaderboard", "data", "save", "load"
-}
-
-local function IsAttackRemote(name)
-    local lower = name:lower()
-    -- ต้องผ่าน whitelist ก่อน
-    local whitelisted = false
-    for _, w in pairs(whitelist) do
-        if lower:find(w) then
-            whitelisted = true
-            break
-        end
-    end
-    if not whitelisted then return false end
-    -- ต้องไม่ติด blacklist
-    for _, bl in pairs(blacklist) do
-        if lower:find(bl) then return false end
-    end
-    return true
-end
-
--- // Cache attack remotes
-local attackRemotes = {}
-local function ScanAttackRemotes()
-    attackRemotes = {}
-    for _, v in pairs(game:GetDescendants()) do
-        if (v:IsA("RemoteEvent") or v:IsA("RemoteFunction")) and IsAttackRemote(v.Name) then
-            table.insert(attackRemotes, v)
-        end
-    end
-end
-
--- // Kill Aura Loop
-local function KillAuraLoop()
-    ScanAttackRemotes()
-    while Config.KillAura do
-        if Character and HumanoidRootPart then
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("Model")
-                and obj ~= Character
-                and obj:FindFirstChildOfClass("Humanoid")
-                and obj:FindFirstChild("HumanoidRootPart") then
-                    local mobHuman = obj:FindFirstChildOfClass("Humanoid")
-                    local mobHRP = obj:FindFirstChild("HumanoidRootPart")
-                    if mobHuman and mobHuman.Health > 0 then
-                        local dist = (HumanoidRootPart.Position - mobHRP.Position).Magnitude
-                        if dist <= Config.Range then
-                            for _, remote in pairs(attackRemotes) do
-                                pcall(function()
-                                    remote:FireServer(obj, mobHuman.Health)
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(Config.Delay)
-    end
-end
 
 -- // GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KillAuraGUI"
+ScreenGui.Name = "RemoteSpy"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 240, 0, 200)
-Frame.Position = UDim2.new(0, 10, 0.5, -100)
+Frame.Size = UDim2.new(0, 320, 0, 500)
+Frame.Position = UDim2.new(0, 10, 0.5, -250)
 Frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 Frame.BorderSizePixel = 0
 Frame.Parent = ScreenGui
@@ -112,114 +25,154 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 36)
 Title.BackgroundColor3 = Color3.fromRGB(200, 80, 140)
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Text = "Kill Aura v3"
+Title.Text = "Remote Spy"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 13
 Title.Parent = Frame
 Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 10)
 
--- Remote count label
-local RemoteLabel = Instance.new("TextLabel")
-RemoteLabel.Size = UDim2.new(1, -10, 0, 20)
-RemoteLabel.Position = UDim2.new(0, 5, 0, 40)
-RemoteLabel.BackgroundTransparency = 1
-RemoteLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-RemoteLabel.Text = "Attack remotes: scanning..."
-RemoteLabel.Font = Enum.Font.Gotham
-RemoteLabel.TextSize = 10
-RemoteLabel.TextXAlignment = Enum.TextXAlignment.Left
-RemoteLabel.Parent = Frame
+-- Clear Button
+local ClearBtn = Instance.new("TextButton")
+ClearBtn.Size = UDim2.new(0.48, 0, 0, 28)
+ClearBtn.Position = UDim2.new(0, 5, 0, 40)
+ClearBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ClearBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+ClearBtn.Text = "Clear Log"
+ClearBtn.Font = Enum.Font.Gotham
+ClearBtn.TextSize = 11
+ClearBtn.Parent = Frame
+Instance.new("UICorner", ClearBtn).CornerRadius = UDim.new(0, 6)
 
--- Toggle
-local Toggle = Instance.new("TextButton")
-Toggle.Size = UDim2.new(1, -10, 0, 34)
-Toggle.Position = UDim2.new(0, 5, 0, 64)
-Toggle.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-Toggle.TextColor3 = Color3.fromRGB(200, 200, 200)
-Toggle.Text = "[ OFF ]  Kill Aura"
-Toggle.Font = Enum.Font.GothamBold
-Toggle.TextSize = 13
-Toggle.Parent = Frame
-Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 6)
+-- Dump All Button
+local DumpBtn = Instance.new("TextButton")
+DumpBtn.Size = UDim2.new(0.48, 0, 0, 28)
+DumpBtn.Position = UDim2.new(0.52, -5, 0, 40)
+DumpBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 140)
+DumpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DumpBtn.Text = "Dump All Remotes"
+DumpBtn.Font = Enum.Font.Gotham
+DumpBtn.TextSize = 11
+DumpBtn.Parent = Frame
+Instance.new("UICorner", DumpBtn).CornerRadius = UDim.new(0, 6)
 
--- Range Label
-local RangeLabel = Instance.new("TextLabel")
-RangeLabel.Size = UDim2.new(1, -10, 0, 20)
-RangeLabel.Position = UDim2.new(0, 5, 0, 104)
-RangeLabel.BackgroundTransparency = 1
-RangeLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-RangeLabel.Text = "Range: 50 studs"
-RangeLabel.Font = Enum.Font.Gotham
-RangeLabel.TextSize = 11
-RangeLabel.TextXAlignment = Enum.TextXAlignment.Left
-RangeLabel.Parent = Frame
+-- Count Label
+local CountLabel = Instance.new("TextLabel")
+CountLabel.Size = UDim2.new(1, -10, 0, 18)
+CountLabel.Position = UDim2.new(0, 5, 0, 72)
+CountLabel.BackgroundTransparency = 1
+CountLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+CountLabel.Text = "Listening for remote calls..."
+CountLabel.Font = Enum.Font.Gotham
+CountLabel.TextSize = 10
+CountLabel.TextXAlignment = Enum.TextXAlignment.Left
+CountLabel.Parent = Frame
 
--- Range Box
-local RangeBox = Instance.new("TextBox")
-RangeBox.Size = UDim2.new(1, -10, 0, 26)
-RangeBox.Position = UDim2.new(0, 5, 0, 126)
-RangeBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-RangeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-RangeBox.Text = "50"
-RangeBox.Font = Enum.Font.Gotham
-RangeBox.TextSize = 12
-RangeBox.Parent = Frame
-Instance.new("UICorner", RangeBox).CornerRadius = UDim.new(0, 6)
+-- Log Scroll
+local LogScroll = Instance.new("ScrollingFrame")
+LogScroll.Size = UDim2.new(1, -10, 1, -96)
+LogScroll.Position = UDim2.new(0, 5, 0, 92)
+LogScroll.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+LogScroll.BorderSizePixel = 0
+LogScroll.ScrollBarThickness = 4
+LogScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 80, 140)
+LogScroll.Parent = Frame
+Instance.new("UICorner", LogScroll).CornerRadius = UDim.new(0, 6)
+Instance.new("UIListLayout", LogScroll).Padding = UDim.new(0, 2)
 
-RangeBox.FocusLost:Connect(function()
-    local val = tonumber(RangeBox.Text)
-    if val then
-        Config.Range = math.clamp(val, 5, 500)
-        RangeLabel.Text = "Range: " .. Config.Range .. " studs"
+local logCount = 0
+local function Log(text, color)
+    logCount = logCount + 1
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -8, 0, 28)
+    label.BackgroundColor3 = logCount % 2 == 0
+        and Color3.fromRGB(28, 28, 28)
+        or Color3.fromRGB(22, 22, 22)
+    label.TextColor3 = color or Color3.fromRGB(200, 200, 200)
+    label.Text = "  " .. text
+    label.Font = Enum.Font.Code
+    label.TextSize = 9
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextWrapped = true
+    label.LayoutOrder = logCount
+    label.Parent = LogScroll
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 4)
+    LogScroll.CanvasSize = UDim2.new(0, 0, 0, logCount * 30 + 4)
+    LogScroll.CanvasPosition = Vector2.new(0, logCount * 30)
+    CountLabel.Text = "Captured: " .. logCount .. " calls"
+end
+
+-- // Arg to string
+local function ArgToString(arg)
+    local t = type(arg)
+    if t == "string" then return '"' .. arg .. '"'
+    elseif t == "number" then return tostring(arg)
+    elseif t == "boolean" then return tostring(arg)
+    elseif t == "nil" then return "nil"
+    elseif t == "userdata" then
+        local ok, name = pcall(function() return arg.Name end)
+        if ok and name then return "[Instance:" .. name .. "]" end
+        return "[userdata]"
+    elseif t == "table" then return "[table]"
+    else return "[" .. t .. "]" end
+end
+
+local function ArgsToString(args)
+    local parts = {}
+    for _, a in ipairs(args) do
+        table.insert(parts, ArgToString(a))
     end
+    return table.concat(parts, ", ")
+end
+
+-- // Hook via __namecall
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer" then
+        local args = {...}
+        local name = self:GetFullName()
+        local argsStr = ArgsToString(args)
+
+        -- color code by type
+        local color
+        local lower = self.Name:lower()
+        if lower:find("attack") or lower:find("hit") or lower:find("damage") or lower:find("kill") then
+            color = Color3.fromRGB(80, 255, 80) -- green = attack
+        elseif lower:find("equip") or lower:find("item") or lower:find("inv") then
+            color = Color3.fromRGB(255, 200, 80) -- yellow = item
+        elseif lower:find("skill") or lower:find("cast") or lower:find("ability") then
+            color = Color3.fromRGB(80, 180, 255) -- blue = skill
+        else
+            color = Color3.fromRGB(200, 200, 200) -- white = other
+        end
+
+        task.spawn(function()
+            Log("[" .. method .. "] " .. name .. " | args: " .. argsStr, color)
+        end)
+    end
+    return oldNamecall(self, ...)
 end)
 
--- Kill Label
-local KillLabel = Instance.new("TextLabel")
-KillLabel.Size = UDim2.new(1, -10, 0, 20)
-KillLabel.Position = UDim2.new(0, 5, 0, 162)
-KillLabel.BackgroundTransparency = 1
-KillLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-KillLabel.Text = "Kills: 0"
-KillLabel.Font = Enum.Font.Gotham
-KillLabel.TextSize = 11
-KillLabel.TextXAlignment = Enum.TextXAlignment.Left
-KillLabel.Parent = Frame
-
--- Kill tracking
-local killCount = 0
-local deadMobs = {}
-RunService.Heartbeat:Connect(function()
-    if Config.KillAura then
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj ~= Character then
-                local h = obj:FindFirstChildOfClass("Humanoid")
-                if h and h.Health <= 0 and not deadMobs[obj] then
-                    deadMobs[obj] = true
-                    killCount = killCount + 1
-                    KillLabel.Text = "Kills: " .. killCount
-                end
-            end
+-- // Dump all remotes in map
+DumpBtn.MouseButton1Click:Connect(function()
+    Log("=== DUMP START ===", Color3.fromRGB(200, 80, 140))
+    local count = 0
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+            count = count + 1
+            Log(v:GetFullName(), Color3.fromRGB(160, 160, 160))
         end
     end
+    Log("=== DUMP END: " .. count .. " remotes ===", Color3.fromRGB(200, 80, 140))
 end)
 
--- Scan on start
-task.delay(2, function()
-    ScanAttackRemotes()
-    RemoteLabel.Text = "Attack remotes: " .. #attackRemotes .. " found"
-end)
-
--- Toggle logic
-Toggle.MouseButton1Click:Connect(function()
-    Config.KillAura = not Config.KillAura
-    Toggle.Text = (Config.KillAura and "[ ON ]   " or "[ OFF ]  ") .. "Kill Aura"
-    Toggle.BackgroundColor3 = Config.KillAura
-        and Color3.fromRGB(200, 80, 140)
-        or Color3.fromRGB(35, 35, 35)
-    if Config.KillAura then
-        task.spawn(KillAuraLoop)
+-- Clear
+ClearBtn.MouseButton1Click:Connect(function()
+    for _, c in pairs(LogScroll:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
     end
+    logCount = 0
+    CountLabel.Text = "Cleared!"
 end)
 
 -- Draggable
@@ -251,4 +204,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[DQ Reborn] Kill Aura v3 loaded ✓")
+print("[DQ Reborn] Remote Spy loaded ✓")
